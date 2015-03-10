@@ -1,7 +1,17 @@
-
+# -*- coding: utf-8 -*-
 import functools
 import threading
 import os
+import sys
+import traceback
+import pdb
+
+def except_hook(exctype, value, tb):
+    traceback.print_tb(tb)
+    print(repr(value))
+    pdb.post_mortem(tb)
+
+sys.excepthook = except_hook
 
 path = os.path
 pjoin = os.path.join
@@ -19,6 +29,7 @@ IN, OUT = 'in', 'out'
 
 
 def _write(f, v):
+    print("writing: {}: {}".format(f, v))
     f.write(str(v))
 
 
@@ -29,7 +40,7 @@ def _read(f):
 
 def _verify(function):
     """decorator to ensure pin is properly set up"""
-    @functools.wraps
+    # @functools.wraps
     def wrapped(pin, *args, **kwargs):
         pin = int(pin)
         if pin not in _open:
@@ -41,7 +52,7 @@ def _verify(function):
             _open[pin] = {
                 'value': open(pjoin(ppath, 'value'), FMODE),
                 'direction': open(pjoin(ppath, 'direction'), FMODE),
-                'drive': open(pjoin(ppath, 'drive'), FMODE)
+                'drive': open(pjoin(ppath, 'drive'), FMODE),
             }
         return function(pin, *args, **kwargs)
     return wrapped
@@ -70,7 +81,7 @@ def read(pin):
         bool: 0 or 1
     '''
     f = _open[pin]['value']
-    return _read(f)
+    return int(_read(f))
 
 
 @_verify
@@ -91,3 +102,15 @@ def input(pin):
 def output(pin, value):
     '''set the pin. Same as set'''
     return set(pin)
+
+
+if __name__ == '__main__':
+    print("starting")
+    skip = {8, 10, 16, 17}
+    values = []
+    for n in xrange(24, 29):
+        if n in skip: continue
+	# print("pin {:3d} = {}".format(n, read(n)))
+        values.append(read(n))
+    print(values)
+
