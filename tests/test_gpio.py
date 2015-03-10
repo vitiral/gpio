@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 from unittest import TestCase
-from unittest.mock import mock_open, patch
+try:
+    from unittest.mock import mock_open, patch
+except ImportError:
+    from mock import mock_open, patch
 import sys
 import os
 pjoin = os.path.join
