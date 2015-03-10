@@ -6,6 +6,7 @@ It is intended to mimick [RPIO](http://pythonhosted.org/RPIO/) as much as possib
 while also supporting additional (and better named) functionality to the same methods.
 
 ## Supported Features
+
 **sysfs** is still under development, and so only supports minimal features
 
 - get pin values with `read(pin)` or `input(pin)`

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+__version__ = '0.0.3'
+
 import functools
 import threading
 import os
