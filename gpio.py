@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-__version__ = '0.0.4'
+__version__ = '0.1.0'
 
 import functools
 import threading
@@ -33,6 +33,7 @@ _open = dict()
 FMODE = 'w+'
 
 IN, OUT = 'in', 'out'
+LOW, HIGH = 'low', 'high'
 
 
 def _write(f, v):
@@ -68,17 +69,35 @@ def _verify(function):
 
 
 @_verify
-def setup(pin, mode, pullup=None):
-    if mode not in {IN, OUT}:
+def setup(pin, mode, value=False):
+    '''Setup pin with mode IN or OUT.
+
+    Args:
+        pin (int):
+        mode (str): use either gpio.OUT or gpio.IN
+        value (bool, optional): Initial pin value
+    '''
+
+
+    if mode not in {IN, OUT, LOW, HIGH}:
         raise ValueError(mode)
     log.debug("Setup {}: {}".format(pin, mode))
     f = _open[pin]['direction']
+    if mode == 'OUT':
+        if value:
+            mode = LOW
+        else:
+            mode = HIGH
     _write(f, mode)
 
 
 @_verify
 def mode(pin):
-    '''get the pin mode'''
+    '''get the pin mode
+
+    Returns:
+        str: "in" or "out"
+    '''
     f = _open[pin]['direction']
     return _read(f)
 
@@ -99,7 +118,7 @@ def read(pin):
 @_verify
 def set(pin, value):
     '''set the pin value to 0 or 1'''
-    value = int(value)
+    value = int(bool(value))
     log.debug("Write {}: {}".format(pin, value))
     f = _open[pin]['value']
     _write(f, value)
@@ -115,14 +134,3 @@ def input(pin):
 def output(pin, value):
     '''set the pin. Same as set'''
     return set(pin)
-
-
-if __name__ == '__main__':
-    print("starting")
-    skip = {8, 10, 16, 17}
-    values = []
-    for n in xrange(24, 29):
-        if n in skip: continue
-	# print("pin {:3d} = {}".format(n, read(n)))
-        values.append(read(n))
-    print(values)
