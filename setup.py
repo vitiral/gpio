@@ -22,7 +22,7 @@ config = {
     },
     'description': "gpio access via the standard linux sysfs interface",
     'long_description': ldesc,
-    'url': "https://github.com/cloudformdesign/cloudtb",
+    'url': "https://github.com/cloudformdesign/gpio",
     'classifiers': [
         # 'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',
