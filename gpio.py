@@ -6,6 +6,11 @@ import sys
 import traceback
 import pdb
 
+import logging
+logging.basicConfig(level=logging.ERROR)
+log = logging.getLogger(__name__)
+
+
 def except_hook(exctype, value, tb):
     traceback.print_tb(tb)
     print(repr(value))
@@ -29,11 +34,12 @@ IN, OUT = 'in', 'out'
 
 
 def _write(f, v):
-    print("writing: {}: {}".format(f, v))
+    log.debug("writing: {}: {}".format(f, v))
     f.write(str(v))
 
 
 def _read(f):
+    log.debug("Reading: {}".format(f))
     f.seek(0)
     return f.read()
 
@@ -46,6 +52,7 @@ def _verify(function):
         if pin not in _open:
             ppath = gpiopath(pin)
             if not os.path.exists(ppath):
+                log.debug("Creating Pin {}".format(pin))
                 with _export_lock:
                     with open(pjoin(gpio_root, 'export'), 'w') as f:
                         _write(f, pin)
@@ -62,6 +69,7 @@ def _verify(function):
 def setup(pin, mode, pullup=None):
     if mode not in {IN, OUT}:
         raise ValueError(mode)
+    log.debug("Setup {}: {}".format(pin, mode))
     f = _open[pin]['direction']
     _write(f, mode)
 
@@ -81,13 +89,16 @@ def read(pin):
         bool: 0 or 1
     '''
     f = _open[pin]['value']
-    return int(_read(f))
+    out = int(_read(f))
+    log.debug("Read {}: {}".format(pin, out))
+    return out
 
 
 @_verify
 def set(pin, value):
     '''set the pin value to 0 or 1'''
     value = int(value)
+    log.debug("Write {}: {}".format(pin, value))
     f = _open[pin]['value']
     _write(f, value)
 
@@ -113,4 +124,3 @@ if __name__ == '__main__':
 	# print("pin {:3d} = {}".format(n, read(n)))
         values.append(read(n))
     print(values)
-

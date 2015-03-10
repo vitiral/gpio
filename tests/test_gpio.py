@@ -6,6 +6,7 @@ import os
 pjoin = os.path.join
 import gpio
 
+
 if sys.version_info.major < 3:
     bins = '__builtin__'
 else:
@@ -47,11 +48,15 @@ class TestRead(TestCase):
 class TestWrite(TestCase):
     @reset
     def test_basic(self):
+        # with mock_open you have to remember that all files are the same
+        # mock object.
         mopen = mock_open(read_data='0')
         with patch(bins + '.open', mopen, create=True) as m:
-            import pdb; pdb.set_trace()
             gpio.setup(0, gpio.OUT)
             gpio.set(0, 0)
         assertInitialized(self, m)
+        # So, "value" could be "direction" or any other file
         written = mockargs(gpio._open[0]['value'].write)
-        import ipdb; ipdb.set_trace()
+        expected = [('0',), ('out',), ('0',)]
+        assertInitialized(self, m)
+        self.assertListEqual(written, expected)
