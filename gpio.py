@@ -9,7 +9,8 @@ import traceback
 import pdb
 
 import logging
-logging.basicConfig(level=logging.ERROR)
+# logging.basicConfig(level=logging.ERROR)
+logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger(__name__)
 
 
@@ -39,12 +40,13 @@ LOW, HIGH = 'low', 'high'
 def _write(f, v):
     log.debug("writing: {}: {}".format(f, v))
     f.write(str(v))
+    f.flush()
 
 
 def _read(f):
     log.debug("Reading: {}".format(f))
     f.seek(0)
-    return f.read()
+    return f.read().strip()
 
 
 def _verify(function):
@@ -62,7 +64,7 @@ def _verify(function):
             _open[pin] = {
                 'value': open(pjoin(ppath, 'value'), FMODE),
                 'direction': open(pjoin(ppath, 'direction'), FMODE),
-                'drive': open(pjoin(ppath, 'drive'), FMODE),
+                # 'drive': open(pjoin(ppath, 'drive'), FMODE),
             }
         return function(pin, *args, **kwargs)
     return wrapped
