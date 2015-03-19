@@ -102,12 +102,12 @@ def setup(pin, mode, pullup=None, initial=False):
         raise ValueError(mode)
     log.debug("Setup {}: {}".format(pin, mode))
     f = _open[pin]['direction']
-    if mode == 'OUT':
-        if initial:
-            mode = LOW
-        else:
-            mode = HIGH
     _write(f, mode)
+    if mode == OUT:
+        if initial:
+            set(pin, 1)
+        else:
+            set(pin, 0)
 
 
 @_verify
