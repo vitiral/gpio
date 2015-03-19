@@ -68,23 +68,40 @@ def _verify(function):
     return wrapped
 
 
+def cleanup(pin):
+    if pin not in _open:
+        return
+    files = _open[pin]
+    files['value'].close()
+    files['direction'].close()
+    files['drive'].close()
+    if os.path.exists(gpiopath(pin)):
+        log.debug("Unexporting pin {}".format(pin))
+        with _export_lock:
+            with open(pjoin(gpio_root, 'unexport'), 'w') as f:
+                _write(f, pin)
+
+
 @_verify
-def setup(pin, mode, value=False):
+def setup(pin, mode, pullup=None, initial=False):
     '''Setup pin with mode IN or OUT.
 
     Args:
         pin (int):
         mode (str): use either gpio.OUT or gpio.IN
-        value (bool, optional): Initial pin value
+        pullup (None): rpio compatibility. If anything but None, raises
+            value Error
+        pullup (bool, optional): Initial pin value. Default is False
     '''
-
+    if pullup is not None:
+        raise ValueError("sysfs does not support pullups")
 
     if mode not in {IN, OUT, LOW, HIGH}:
         raise ValueError(mode)
     log.debug("Setup {}: {}".format(pin, mode))
     f = _open[pin]['direction']
     if mode == 'OUT':
-        if value:
+        if initial:
             mode = LOW
         else:
             mode = HIGH
@@ -134,3 +151,16 @@ def input(pin):
 def output(pin, value):
     '''set the pin. Same as set'''
     return set(pin)
+
+
+def setwarnings(value):
+    '''exists for rpio compatibility'''
+    pass
+
+
+def setmode(value):
+    '''exists for rpio compatibility'''
+    pass
+
+
+BCM = None  # rpio compatibility
