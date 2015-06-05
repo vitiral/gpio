@@ -24,7 +24,7 @@ path = os.path
 pjoin = os.path.join
 
 gpio_root = '/sys/class/gpio'
-gpiopath = lambda pin: os.path.join(gpio_root, 'gpio{}'.format(pin))
+gpiopath = lambda pin: os.path.join(gpio_root, 'gpio{0}'.format(pin))
 _export_lock = threading.Lock()
 
 _pyset = set
@@ -37,13 +37,13 @@ LOW, HIGH = 'low', 'high'
 
 
 def _write(f, v):
-    log.debug("writing: {}: {}".format(f, v))
+    log.debug("writing: {0}: {1}".format(f, v))
     f.write(str(v))
     f.flush()
 
 
 def _read(f):
-    log.debug("Reading: {}".format(f))
+    log.debug("Reading: {0}".format(f))
     f.seek(0)
     return f.read().strip()
 
@@ -56,7 +56,7 @@ def _verify(function):
         if pin not in _open:
             ppath = gpiopath(pin)
             if not os.path.exists(ppath):
-                log.debug("Creating Pin {}".format(pin))
+                log.debug("Creating Pin {0}".format(pin))
                 with _export_lock:
                     with open(pjoin(gpio_root, 'export'), 'w') as f:
                         _write(f, pin)
@@ -77,7 +77,7 @@ def cleanup(pin):
     files['direction'].close()
     files['drive'].close()
     if os.path.exists(gpiopath(pin)):
-        log.debug("Unexporting pin {}".format(pin))
+        log.debug("Unexporting pin {0}".format(pin))
         with _export_lock:
             with open(pjoin(gpio_root, 'unexport'), 'w') as f:
                 _write(f, pin)
@@ -97,9 +97,9 @@ def setup(pin, mode, pullup=None, initial=False):
     if pullup is not None:
         raise ValueError("sysfs does not support pullups")
 
-    if mode not in {IN, OUT, LOW, HIGH}:
+    if mode not in (IN, OUT, LOW, HIGH):
         raise ValueError(mode)
-    log.debug("Setup {}: {}".format(pin, mode))
+    log.debug("Setup {0}: {1}".format(pin, mode))
     f = _open[pin]['direction']
     _write(f, mode)
     if mode == OUT:
@@ -129,7 +129,7 @@ def read(pin):
     '''
     f = _open[pin]['value']
     out = int(_read(f))
-    log.debug("Read {}: {}".format(pin, out))
+    log.debug("Read {0}: {1}".format(pin, out))
     return out
 
 
@@ -137,7 +137,7 @@ def read(pin):
 def set(pin, value):
     '''set the pin value to 0 or 1'''
     value = int(bool(value))
-    log.debug("Write {}: {}".format(pin, value))
+    log.debug("Write {0}: {1}".format(pin, value))
     f = _open[pin]['value']
     _write(f, value)
 
@@ -151,7 +151,7 @@ def input(pin):
 @_verify
 def output(pin, value):
     '''set the pin. Same as set'''
-    return set(pin)
+    return set(pin, value)
 
 
 def setwarnings(value):
