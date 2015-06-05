@@ -9,7 +9,7 @@ to the same methods.
 
 ## Supported Features
 - get pin values with `read(pin)` or `input(pin)`
-- set pin values with `set(pin, value)` or `output(pin)`
+- set pin values with `set(pin, value)` or `output(pin, value)`
 - get the pin mode with `mode(pin)`
 - set the pin mode with `setup(pin, mode)`
-    - `mode` can currently equal `sysfs.IN` or `sysfs.OUT`
+    - `mode` can currently equal `gpio.IN` or `gpio.OUT`
