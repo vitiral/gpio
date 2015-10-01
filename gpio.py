@@ -63,7 +63,6 @@ def _verify(function):
             _open[pin] = {
                 'value': open(pjoin(ppath, 'value'), FMODE),
                 'direction': open(pjoin(ppath, 'direction'), FMODE),
-                # 'drive': open(pjoin(ppath, 'drive'), FMODE),
             }
         return function(pin, *args, **kwargs)
     return wrapped
@@ -75,7 +74,6 @@ def cleanup(pin):
     files = _open[pin]
     files['value'].close()
     files['direction'].close()
-    files['drive'].close()
     if os.path.exists(gpiopath(pin)):
         log.debug("Unexporting pin {0}".format(pin))
         with _export_lock:
