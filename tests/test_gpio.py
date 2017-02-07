@@ -1,4 +1,11 @@
 # -*- coding: utf-8 -*-
+
+"""Unit tests.
+
+These don't seem to work on anymore (at least not on x86)
+"""
+
+
 from unittest import TestCase
 try:
     from unittest.mock import mock_open, patch
