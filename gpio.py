@@ -18,6 +18,20 @@ def except_hook(exctype, value, tb):
     print(repr(value))
     pdb.post_mortem(tb)
 
+
+class PinState(object):
+    """An ultra simple pin-state object.
+
+    Keeps track data related to each pin.
+
+    Args:
+        value: the file pointer to set/read value of pin.
+        direction: the file pointer to set/read direction of the pin.
+    """
+    def __init__(self, value, direction):
+        self.value = value
+        self.direction = direction
+
 sys.excepthook = except_hook
 
 path = os.path
@@ -60,25 +74,44 @@ def _verify(function):
                 with _export_lock:
                     with open(pjoin(gpio_root, 'export'), 'w') as f:
                         _write(f, pin)
-            _open[pin] = {
-                'value': open(pjoin(ppath, 'value'), FMODE),
-                'direction': open(pjoin(ppath, 'direction'), FMODE),
-            }
+            value = open(pjoin(ppath, 'value'), FMODE)
+            direction = open(pjoin(ppath, 'direction'), FMODE)
+            _open[pin] = PinState(value=value, direction=direction)
         return function(pin, *args, **kwargs)
     return wrapped
 
 
-def cleanup(pin):
-    if pin not in _open:
+def cleanup(pin=None, assert_exists=False):
+    """Cleanup the pin by closing and unexporting it.
+
+    Args:
+        pin (int, optional): either the pin to clean up or None (default).
+            If None, clean up all pins.
+        assert_exists: if True, raise a ValueError if the pin was not
+            setup. Otherwise, this function is a NOOP.
+    """
+    if pin is None:
+        # Take a list of keys because we will be deleting from _open
+        for pin in list(_open):
+            cleanup(pin)
         return
-    files = _open[pin]
-    files['value'].close()
-    files['direction'].close()
+    if not isinstance(pin, int):
+        raise TypeError("pin must be an int, got: {}".format(pin))
+
+    state = _open.get(pin)
+    if state is None:
+        if assert_exists:
+            raise ValueError("pin {} was not setup".format(pin))
+        return
+    state.value.close()
+    state.direction.close()
     if os.path.exists(gpiopath(pin)):
         log.debug("Unexporting pin {0}".format(pin))
         with _export_lock:
             with open(pjoin(gpio_root, 'unexport'), 'w') as f:
                 _write(f, pin)
+
+    del _open[pin]
 
 
 @_verify
@@ -97,8 +130,9 @@ def setup(pin, mode, pullup=None, initial=False):
 
     if mode not in (IN, OUT, LOW, HIGH):
         raise ValueError(mode)
+
     log.debug("Setup {0}: {1}".format(pin, mode))
-    f = _open[pin]['direction']
+    f = _open[pin].direction
     _write(f, mode)
     if mode == OUT:
         if initial:
@@ -114,7 +148,7 @@ def mode(pin):
     Returns:
         str: "in" or "out"
     '''
-    f = _open[pin]['direction']
+    f = _open[pin].direction
     return _read(f)
 
 
@@ -125,7 +159,7 @@ def read(pin):
     Returns:
         bool: 0 or 1
     '''
-    f = _open[pin]['value']
+    f = _open[pin].value
     out = int(_read(f))
     log.debug("Read {0}: {1}".format(pin, out))
     return out
@@ -138,7 +172,7 @@ def set(pin, value):
         value = 0
     value = int(bool(value))
     log.debug("Write {0}: {1}".format(pin, value))
-    f = _open[pin]['value']
+    f = _open[pin].value
     _write(f, value)
 
 
