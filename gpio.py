@@ -176,13 +176,11 @@ def set(pin, value):
     _write(f, value)
 
 
-@_verify
 def input(pin):
     '''read the pin. Same as read'''
     return read(pin)
 
 
-@_verify
 def output(pin, value):
     '''set the pin. Same as set'''
     return set(pin, value)
