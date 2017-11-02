@@ -9,7 +9,7 @@ import pdb
 
 import logging
 # logging.basicConfig(level=logging.ERROR)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.CRITICAL)
 log = logging.getLogger(__name__)
 
 
@@ -168,9 +168,6 @@ def read(pin):
 @_verify
 def set(pin, value):
     '''set the pin value to 0 or 1'''
-    if value is LOW:
-        value = 0
-    value = int(bool(value))
     log.debug("Write {0}: {1}".format(pin, value))
     f = _open[pin].value
     _write(f, value)
