@@ -47,7 +47,7 @@ _open = dict()
 FMODE = 'w+'
 
 IN, OUT = 'in', 'out'
-LOW, HIGH = 'low', 'high'
+LOW, HIGH = 0, 1
 
 
 def _write(f, v):
