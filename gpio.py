@@ -16,6 +16,8 @@ class PinState(object):
     Args:
         value: the file pointer to set/read value of pin.
         direction: the file pointer to set/read direction of the pin.
+        active_now: the file pointer to set/read if the pin is active_low,
+            if None leave things as configured currently in sysfs.
     """
     def __init__(self, value, direction, active_low):
         self.value = value
@@ -104,7 +106,7 @@ def cleanup(pin=None, assert_exists=False):
 
 
 @_verify
-def setup(pin, mode, pullup=None, initial=False, active_low=False):
+def setup(pin, mode, pullup=None, initial=False, active_low=None):
     '''Setup pin with mode IN or OUT.
 
     Args:
@@ -113,7 +115,8 @@ def setup(pin, mode, pullup=None, initial=False, active_low=False):
         pullup (None): rpio compatibility. If anything but None, raises
             value Error
         initial (bool, optional): Initial pin value. Default is False
-        active_low (bool, optional): Set the pin to active low. Default is False
+        active_low (bool, optional): Set the pin to active low. Default
+            is None which leaves things as configured in sysfs
     '''
     if pullup is not None:
         raise ValueError("sysfs does not support pullups")
@@ -124,12 +127,13 @@ def setup(pin, mode, pullup=None, initial=False, active_low=False):
     if not type(active_low) == bool:
         raise ValueError("active_low argument must be True or False")
 
-    log.debug("Set active_low {0}: {1}".format(pin, active_low))
-    f_active_low = _open[pin].active_low
-    if active_low:
-        _write(f_active_low, 1)
-    else:
-        _write(f_active_low, 0)
+    if active_low is not None:
+        log.debug("Set active_low {0}: {1}".format(pin, active_low))
+        f_active_low = _open[pin].active_low
+        if active_low:
+            _write(f_active_low, 1)
+        else:
+            _write(f_active_low, 0)
 
     log.debug("Setup {0}: {1}".format(pin, mode))
     f_direction = _open[pin].direction
