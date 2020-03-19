@@ -16,8 +16,7 @@ class PinState(object):
     Args:
         value: the file pointer to set/read value of pin.
         direction: the file pointer to set/read direction of the pin.
-        active_now: the file pointer to set/read if the pin is active_low,
-            if None leave things as configured currently in sysfs.
+        active_now: the file pointer to set/read if the pin is active_low.
     """
     def __init__(self, value, direction, active_low):
         self.value = value
