@@ -16,10 +16,12 @@ class PinState(object):
     Args:
         value: the file pointer to set/read value of pin.
         direction: the file pointer to set/read direction of the pin.
+        active_now: the file pointer to set/read if the pin is active_low.
     """
-    def __init__(self, value, direction):
+    def __init__(self, value, direction, active_low):
         self.value = value
         self.direction = direction
+        self.active_low = active_low
 
 path = os.path
 pjoin = os.path.join
@@ -61,9 +63,17 @@ def _verify(function):
                 with _export_lock:
                     with open(pjoin(gpio_root, 'export'), 'w') as f:
                         _write(f, pin)
-            value = open(pjoin(ppath, 'value'), FMODE)
-            direction = open(pjoin(ppath, 'direction'), FMODE)
-            _open[pin] = PinState(value=value, direction=direction)
+            value, direction, active_low = None, None, None
+            try:
+                value = open(pjoin(ppath, 'value'), FMODE)
+                direction = open(pjoin(ppath, 'direction'), FMODE)
+                active_low = open(pjoin(ppath, 'active_low'), FMODE)
+            except Exception as e:
+                if value: value.close()
+                if direction: direction.close()
+                if active_low: active_low.close()
+                raise e
+            _open[pin] = PinState(value=value, direction=direction, active_low=active_low)
         return function(pin, *args, **kwargs)
     return wrapped
 
@@ -92,6 +102,7 @@ def cleanup(pin=None, assert_exists=False):
         return
     state.value.close()
     state.direction.close()
+    state.active_low.close()
     if os.path.exists(gpiopath(pin)):
         log.debug("Unexporting pin {0}".format(pin))
         with _export_lock:
@@ -102,7 +113,7 @@ def cleanup(pin=None, assert_exists=False):
 
 
 @_verify
-def setup(pin, mode, pullup=None, initial=False):
+def setup(pin, mode, pullup=None, initial=False, active_low=None):
     '''Setup pin with mode IN or OUT.
 
     Args:
@@ -110,7 +121,9 @@ def setup(pin, mode, pullup=None, initial=False):
         mode (str): use either gpio.OUT or gpio.IN
         pullup (None): rpio compatibility. If anything but None, raises
             value Error
-        pullup (bool, optional): Initial pin value. Default is False
+        initial (bool, optional): Initial pin value. Default is False
+        active_low (bool, optional): Set the pin to active low. Default
+            is None which leaves things as configured in sysfs
     '''
     if pullup is not None:
         raise ValueError("sysfs does not support pullups")
@@ -118,9 +131,16 @@ def setup(pin, mode, pullup=None, initial=False):
     if mode not in (IN, OUT, LOW, HIGH):
         raise ValueError(mode)
 
+    if active_low is not None:
+        if not isinstance(active_low, bool):
+            raise ValueError("active_low argument must be True or False")
+        log.debug("Set active_low {0}: {1}".format(pin, active_low))
+        f_active_low = _open[pin].active_low
+        _write(f_active_low, int(active_low))
+
     log.debug("Setup {0}: {1}".format(pin, mode))
-    f = _open[pin].direction
-    _write(f, mode)
+    f_direction = _open[pin].direction
+    _write(f_direction, mode)
     if mode == OUT:
         if initial:
             set(pin, 1)
