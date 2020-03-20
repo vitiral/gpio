@@ -63,9 +63,16 @@ def _verify(function):
                 with _export_lock:
                     with open(pjoin(gpio_root, 'export'), 'w') as f:
                         _write(f, pin)
-            value = open(pjoin(ppath, 'value'), FMODE)
-            direction = open(pjoin(ppath, 'direction'), FMODE)
-            active_low = open(pjoin(ppath, 'active_low'), FMODE)
+            value, direction, active_low = None, None, None
+            try:
+                value = open(pjoin(ppath, 'value'), FMODE)
+                direction = open(pjoin(ppath, 'direction'), FMODE)
+                active_low = open(pjoin(ppath, 'active_low'), FMODE)
+            except Exception as e:
+                if value: value.close()
+                if direction: direction.close()
+                if active_low: active_low.close()
+                throw e
             _open[pin] = PinState(value=value, direction=direction, active_low=active_low)
         return function(pin, *args, **kwargs)
     return wrapped
