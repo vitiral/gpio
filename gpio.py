@@ -72,7 +72,7 @@ def _verify(function):
                 if value: value.close()
                 if direction: direction.close()
                 if active_low: active_low.close()
-                throw e
+                raise e
             _open[pin] = PinState(value=value, direction=direction, active_low=active_low)
         return function(pin, *args, **kwargs)
     return wrapped
