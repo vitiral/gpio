@@ -131,10 +131,9 @@ def setup(pin, mode, pullup=None, initial=False, active_low=None):
     if mode not in (IN, OUT, LOW, HIGH):
         raise ValueError(mode)
 
-    if not type(active_low) == bool:
-        raise ValueError("active_low argument must be True or False")
-
     if active_low is not None:
+        if not isinstance(active_low, bool):
+            raise ValueError("active_low argument must be True or False")
         log.debug("Set active_low {0}: {1}".format(pin, active_low))
         f_active_low = _open[pin].active_low
         if active_low:
