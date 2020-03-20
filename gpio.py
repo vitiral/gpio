@@ -136,10 +136,7 @@ def setup(pin, mode, pullup=None, initial=False, active_low=None):
             raise ValueError("active_low argument must be True or False")
         log.debug("Set active_low {0}: {1}".format(pin, active_low))
         f_active_low = _open[pin].active_low
-        if active_low:
-            _write(f_active_low, 1)
-        else:
-            _write(f_active_low, 0)
+        _write(f_active_low, int(active_low))
 
     log.debug("Setup {0}: {1}".format(pin, mode))
     f_direction = _open[pin].direction
