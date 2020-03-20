@@ -95,6 +95,7 @@ def cleanup(pin=None, assert_exists=False):
         return
     state.value.close()
     state.direction.close()
+    state.active_low.close()
     if os.path.exists(gpiopath(pin)):
         log.debug("Unexporting pin {0}".format(pin))
         with _export_lock:
