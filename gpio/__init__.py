@@ -31,7 +31,7 @@ class GPIOPin(object):
     Raises:
         RuntimeError: if pin is already configured
     """
-    def __init__(self, pin, mode=None, initial=LOW, active_low=None):
+    def __init__(self, pin, direction=None, initial=LOW, active_low=None):
         #  .configured() will raise a TypeError if "pin" is not convertable to int
         if GPIOPin.configured(pin, False) is not None:
             raise RuntimeError("pin {} is already configured".format(pin))
@@ -50,19 +50,19 @@ class GPIOPin(object):
         self.value = open(os.path.join(self.root, 'value'), 'wb+', buffering=0)
 
         # I hate manually calling .setup()!
-        self.setup(mode, initial, active_low)
+        self.setup(direction, initial, active_low)
 
         # Add class to open pins
         _open_pins[self.pin] = self
 
-    def setup(self, mode=None, initial=LOW, active_low=None):
-        if mode is not None:
-            self.set_direction(mode)
+    def setup(self, direction=None, initial=LOW, active_low=None):
+        if direction is not None:
+            self.set_direction(direction)
 
         if active_low is not None:
             self.set_active_low(active_low)
 
-        if mode == OUT:
+        if direction == OUT:
             self.write(initial)
 
     @staticmethod
@@ -82,8 +82,8 @@ class GPIOPin(object):
         try:
             # Implicitly convert str to int, ie: "1" -> 1
             pin = int(pin)
-        except TypeError:
-            raise TypeError("pin must be an int")
+        except (TypeError, ValueError):
+            raise ValueError("pin must be an int")
 
         if pin not in _open_pins and assert_configured:
             raise RuntimeError("pin {} is not configured".format(pin))
@@ -113,7 +113,7 @@ class GPIOPin(object):
             f.flush()
 
     def set_active_low(self, active_low):
-        '''Set the direction of pin
+        '''Set the polarity of pin
 
         Args:
             mode (bool): True = active low / False = active high
@@ -200,6 +200,7 @@ def cleanup(pin=None, assert_exists=False):
             state.cleanup()  # GPIOPin will remove itself from _open_pins
 
 
+# TODO RPi.GPIO uses "pull_up_down", does rpio differ?
 def setup(pins, mode, pullup=None, initial=LOW, active_low=None):
     '''Setup pin with mode IN or OUT.
 

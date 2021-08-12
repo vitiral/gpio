@@ -10,7 +10,7 @@ def test_setup_rpio(gpio, patch_open):
 
     patch_open.assert_any_call('/sys/class/gpio/gpio10/value', 'wb+', buffering=0)
     patch_open.assert_any_call('/sys/class/gpio/gpio10/direction', 'w+')
-    patch_open().__enter__().write.assert_any_call('out')
+    patch_open().__enter__().write.assert_any_call(str(gpio.OUT))
 
 
 def test_setup_class(gpio, patch_open):
@@ -21,7 +21,12 @@ def test_setup_class(gpio, patch_open):
 
     patch_open.assert_any_call('/sys/class/gpio/gpio10/value', 'wb+', buffering=0)
     patch_open.assert_any_call('/sys/class/gpio/gpio10/direction', 'w+')
-    patch_open().__enter__().write.assert_any_call('out')
+    patch_open().__enter__().write.assert_any_call(str(gpio.OUT))
+
+
+def test_setup_with_pull(gpio, patch_open):
+    with pytest.raises(ValueError):
+        gpio.setup(10, gpio.OUT, pullup=1)
 
 
 def test_class_already_setup(gpio, patch_open):
@@ -63,6 +68,7 @@ def test_rpio_invalid_cleanup(gpio, patch_open):
     with pytest.raises(RuntimeError):
         gpio.cleanup(10, True)
 
+
 def test_rpio_invalid_cleanup_list(gpio, patch_open):
     gpio.setup(10, gpio.OUT)
     with pytest.raises(RuntimeError):
@@ -84,6 +90,14 @@ def test_cleanup_class_unexports_pin(gpio, patch_open):
     patch_open().__enter__().write.assert_any_call('10')
 
 
+def test_setup_pin_is_not_int(gpio, patch_open):
+    with pytest.raises(ValueError):
+        gpio.setup('', gpio.OUT)
+
+    with pytest.raises(ValueError):
+        pin = gpio.GPIOPin('', gpio.OUT)
+
+
 def test_cleanup_class_unregisters_self(gpio, patch_open):
     pin = gpio.GPIOPin(10, gpio.OUT)
     patch_open.reset_mock()
@@ -96,8 +110,8 @@ def test_set_direction(gpio, patch_open):
     patch_open.reset_mock()
     pin.set_direction(gpio.OUT)
     pin.set_direction(gpio.IN)
-    patch_open().__enter__().write.assert_any_call('out')
-    patch_open().__enter__().write.assert_any_call('in')
+    patch_open().__enter__().write.assert_any_call(str(gpio.OUT))
+    patch_open().__enter__().write.assert_any_call(str(gpio.IN))
 
 
 def test_set_active_low(gpio, patch_open):
@@ -117,6 +131,51 @@ def test_set_active_low(gpio, patch_open):
         mock.call().__enter__().flush(),
     ))
 
+    with pytest.raises(ValueError):
+        pin.set_active_low('')
+
+
+def test_setup_active_low(gpio, patch_open):
+    pin = gpio.GPIOPin(10, gpio.OUT, active_low=False)
+    patch_open.assert_has_calls((
+        mock.call().__enter__().write('0'),
+        mock.call().__enter__().flush(),
+    ))
+    pin.cleanup()
+
+    patch_open.reset_mock()
+    pin = gpio.GPIOPin(10, gpio.OUT, active_low=True)
+    patch_open.assert_has_calls((
+        mock.call().__enter__().write('1'),
+        mock.call().__enter__().flush(),
+    ))
+
+
+def test_get_direction(gpio, patch_open):
+    pin = gpio.GPIOPin(10, gpio.IN)
+
+    patch_open().__enter__().read.return_value = 'in\n'
+    assert pin.get_direction() == gpio.IN
+    assert gpio.mode(10) == gpio.IN
+
+    patch_open().__enter__().read.return_value = 'out\n'
+    assert pin.get_direction() == gpio.OUT
+    assert gpio.mode(10) == gpio.OUT
+
+
+def test_set_direction(gpio, patch_open):
+    pin = gpio.GPIOPin(10, gpio.IN)
+
+    for direction in (gpio.IN, gpio.OUT):
+        patch_open.reset_mock()
+        pin.set_direction(direction)
+        patch_open.assert_has_calls((
+            mock.call().__enter__().write(direction),
+        ))
+
+    with pytest.raises(ValueError):
+        pin.set_direction('')
+
 
 def test_unconfigured_runtimeerror(gpio, patch_open):
     with pytest.raises(RuntimeError):
@@ -133,7 +192,19 @@ def test_write(gpio, patch_open):
     ))
 
     patch_open.reset_mock()
+    gpio.write(10, False)
+    patch_open.assert_has_calls((
+        mock.call().write(b'0'),
+    ))
+
+    patch_open.reset_mock()
     pin.write(True)
+    patch_open.assert_has_calls((
+        mock.call().write(b'1'),
+    ))
+
+    patch_open.reset_mock()
+    gpio.write(10, True)
     patch_open.assert_has_calls((
         mock.call().write(b'1'),
     ))
@@ -143,9 +214,9 @@ def test_read(gpio, patch_open):
     pin = gpio.GPIOPin(10, gpio.IN)
 
     patch_open().read.return_value = b'1\n'
-    value = pin.read()
-    assert value == gpio.HIGH
+    assert pin.read() == gpio.HIGH
+    assert gpio.read(10) == gpio.HIGH
 
     patch_open().read.return_value = b'0\n'
-    value = pin.read()
-    assert value == gpio.LOW
+    assert pin.read() == gpio.LOW
+    assert gpio.read(10) == gpio.LOW
