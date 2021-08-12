@@ -1,72 +1,115 @@
-# -*- coding: utf-8 -*-
-
-"""Unit tests.
-
-These don't seem to work on anymore (at least not on x86)
-"""
+import mock
+import pytest
 
 
-from unittest import TestCase
-try:
-    from unittest.mock import mock_open, patch
-except ImportError:
-    from mock import mock_open, patch
-import sys
-import os
-pjoin = os.path.join
-import gpio
+def test_setup_rpio(gpio, patch_open):
+    gpio.setup(10, gpio.OUT)
+
+    patch_open.assert_any_call('/sys/class/gpio/export', 'w+')
+    patch_open().__enter__().write.assert_any_call('10')
+
+    patch_open.assert_any_call('/sys/class/gpio/gpio10/value', 'wb+', buffering=0)
+    patch_open.assert_any_call('/sys/class/gpio/gpio10/direction', 'w+')
+    patch_open().__enter__().write.assert_any_call('out')
 
 
-if sys.version_info.major < 3:
-    bins = '__builtin__'
-else:
-    bins = 'builtins'
+def test_setup_class(gpio, patch_open):
+    pin = gpio.GPIOPin(10, gpio.OUT)
 
-root = gpio.gpio_root
+    patch_open.assert_any_call('/sys/class/gpio/export', 'w+')
+    patch_open().__enter__().write.assert_any_call('10')
 
-
-def mockargs(mock):
-    return [m[0] for m in mock.call_args_list]
-
-
-def assertInitialized(self, mfile, gpio=0):
-    margs = mockargs(mfile)
-    groot = pjoin(root, 'gpio{}'.format(gpio))
-    self.assertEqual(margs[0], (pjoin(root, 'export'), 'w'))
-    self.assertEqual(margs[1], (pjoin(groot, 'value'), 'w+'))
-    self.assertEqual(margs[2], (pjoin(groot, 'direction'), 'w+'))
-    self.assertEqual(margs[3], (pjoin(groot, 'drive'), 'w+'))
+    patch_open.assert_any_call('/sys/class/gpio/gpio10/value', 'wb+', buffering=0)
+    patch_open.assert_any_call('/sys/class/gpio/gpio10/direction', 'w+')
+    patch_open().__enter__().write.assert_any_call('out')
 
 
-def reset(method):
-    def wrapped(*args, **kwargs):
-        gpio._open.clear()
-        return method(*args, **kwargs)
-    return wrapped
+def test_class_already_setup(gpio, patch_open):
+    pin = gpio.GPIOPin(10, gpio.OUT)
+
+    with pytest.raises(RuntimeError):
+        gpio.GPIOPin(10, gpio.OUT)
 
 
-class TestRead(TestCase):
-    @reset
-    def test_basic(self):
-        mopen = mock_open(read_data='0')
-        with patch(bins + '.open', mopen, create=True) as m:
-            result = gpio.read(0)
-        assertInitialized(self, m)
-        self.assertEqual(result, 0)
+def test_rpio_already_setup(gpio, patch_open):
+    gpio.setup(10, gpio.OUT)
+
+    with pytest.raises(RuntimeError):
+        gpio.GPIOPin(10, gpio.OUT)
 
 
-class TestWrite(TestCase):
-    @reset
-    def test_basic(self):
-        # with mock_open you have to remember that all files are the same
-        # mock object.
-        mopen = mock_open(read_data='0')
-        with patch(bins + '.open', mopen, create=True) as m:
-            gpio.setup(0, gpio.OUT)
-            gpio.set(0, 0)
-        assertInitialized(self, m)
-        # So, "value" could be "direction" or any other file
-        written = mockargs(gpio._open[0]['value'].write)
-        expected = [('0',), ('out',), ('0',)]
-        assertInitialized(self, m)
-        self.assertListEqual(written, expected)
+def test_setup_class_registers_self(gpio, patch_open):
+    pin = gpio.GPIOPin(10, gpio.OUT)
+    assert gpio.GPIOPin.configured(10) == pin
+
+
+def test_cleanup_class_unexports_pin(gpio, patch_open):
+    pin = gpio.GPIOPin(10, gpio.OUT)
+    patch_open.reset_mock()
+    pin.root = "/dev/null"  # Pass os.path.exists check
+    pin.cleanup()
+
+    patch_open.assert_any_call('/sys/class/gpio/unexport', 'w+')
+    patch_open().__enter__().write.assert_any_call('10')
+
+
+def test_cleanup_class_unregisters_self(gpio, patch_open):
+    pin = gpio.GPIOPin(10, gpio.OUT)
+    patch_open.reset_mock()
+    pin.cleanup()
+    assert gpio.GPIOPin.configured(10) == None
+
+
+def test_set_direction(gpio, patch_open):
+    pin = gpio.GPIOPin(10, gpio.OUT)
+    patch_open.reset_mock()
+    pin.set_direction(gpio.OUT)
+    pin.set_direction(gpio.IN)
+    patch_open().__enter__().write.assert_any_call('out')
+    patch_open().__enter__().write.assert_any_call('in')
+
+
+def test_set_active_low(gpio, patch_open):
+    pin = gpio.GPIOPin(10, gpio.OUT)
+
+    patch_open.reset_mock()
+    pin.set_active_low(False)
+    patch_open.assert_has_calls((
+        mock.call().__enter__().write('0'),
+        mock.call().__enter__().flush(),
+    ))
+
+    patch_open.reset_mock()
+    pin.set_active_low(True)
+    patch_open.assert_has_calls((
+        mock.call().__enter__().write('1'),
+        mock.call().__enter__().flush(),
+    ))
+
+
+def test_write(gpio, patch_open):
+    pin = gpio.GPIOPin(10, gpio.OUT)
+
+    patch_open.reset_mock()
+    pin.write(False)
+    patch_open.assert_has_calls((
+        mock.call().write(b'0'),
+    ))
+
+    patch_open.reset_mock()
+    pin.write(True)
+    patch_open.assert_has_calls((
+        mock.call().write(b'1'),
+    ))
+
+
+def test_read(gpio, patch_open):
+    pin = gpio.GPIOPin(10, gpio.IN)
+
+    patch_open().read.return_value = b'1\n'
+    value = pin.read()
+    assert value == gpio.HIGH
+
+    patch_open().read.return_value = b'0\n'
+    value = pin.read()
+    assert value == gpio.LOW
