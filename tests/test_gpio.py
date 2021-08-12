@@ -33,6 +33,9 @@ def test_class_already_setup(gpio, patch_open):
 
 def test_rpio_already_setup(gpio, patch_open):
     gpio.setup(10, gpio.OUT)
+    # Running gpio.setup again should not raise an error
+    # in RPi.GPIO this may raise a warning
+    gpio.setup(10, gpio.OUT)
 
     with pytest.raises(RuntimeError):
         gpio.GPIOPin(10, gpio.OUT)

@@ -20,10 +20,16 @@ LOW, HIGH = 0, 1
 class GPIOPin(object):
     """Handle pin state.
 
-    Keeps track of file nodes and functions related to a pin.
+    Create a singleton instance of a GPIOPin(n) and track its state internally.
 
     Args:
-        pin (int): the GPIO pin to configure
+        pin (int): the pin to configure
+        mode (str): use either gpio.OUT or gpio.IN
+        initial (bool, optional): Initial pin value. Default is LOW
+        active_low (bool, optional): Set the pin to active low. Default
+            is None which leaves things as configured in sysfs
+    Raises:
+        RuntimeError: if pin is already configured
     """
     def __init__(self, pin, mode=None, initial=LOW, active_low=None):
         #  .configured() will raise a TypeError if "pin" is not convertable to int
@@ -43,6 +49,13 @@ class GPIOPin(object):
         # Using unbuffered binary IO is ~ 3x faster than text
         self.value = open(os.path.join(self.root, 'value'), 'wb+', buffering=0)
 
+        # I hate manually calling .setup()!
+        self.setup(mode, initial, active_low)
+
+        # Add class to open pins
+        _open_pins[self.pin] = self
+
+    def setup(self, mode=None, initial=LOW, active_low=None):
         if mode is not None:
             self.set_direction(mode)
 
@@ -52,15 +65,12 @@ class GPIOPin(object):
         if mode == OUT:
             self.write(initial)
 
-        # Add class to open pins
-        _open_pins[self.pin] = self
-
     @staticmethod
     def configured(pin, assert_configured=True):
         """Get a configured GPIOPin instance where available.
 
         Args:
-            pin (int): the GPIO pin to configured
+            pin (int): the pin to check
             assert_configured (bool): True to raise exception if pin unconfigured
 
         Returns:
@@ -93,7 +103,7 @@ class GPIOPin(object):
         '''Set the direction of pin
 
         Args:
-            mode (str): "in" or "out"
+            mode (str): use either gpio.OUT or gpio.IN
         '''
         if mode not in (IN, OUT, LOW, HIGH):
             raise ValueError("Unsupported pin mode {}".format(mode))
@@ -106,7 +116,7 @@ class GPIOPin(object):
         '''Set the direction of pin
 
         Args:
-            mode (bool): True/False
+            mode (bool): True = active low / False = active high
         '''
         if not isinstance(active_low, bool):
             raise ValueError("active_low must be True or False")
@@ -116,7 +126,11 @@ class GPIOPin(object):
             f.flush()
 
     def read(self):
-        '''Read pin value'''
+        '''Read pin value
+
+        Returns:
+            int: gpio.HIGH or gpio.LOW
+        '''
         self.value.seek(0)
         value = self.value.read()
         try:
@@ -129,7 +143,11 @@ class GPIOPin(object):
             return int(value)
 
     def write(self, value):
-        '''Write pin value'''
+        '''Write pin value
+
+        Args:
+            value (bool): use either gpio.HIGH or gpio.LOW
+        '''
         # Convert any truthy value explicitly to HIGH and vice versa
         # this is about 3x faster than int(bool(value))
         value = HIGH if value else LOW
@@ -166,20 +184,23 @@ def cleanup(pin=None, assert_exists=False):
         assert_exists: if True, raise a ValueError if the pin was not
             setup. Otherwise, this function is a NOOP.
     """
-    if pin is None:
-        pin = list(_open_pins.keys())
+    # Note: since "pin" is a kwarg in this function, it has not been renamed it to "pins" above
+    pins = pin
 
-    if type(pin) not in (list, tuple):
-        pin = [pin]
+    if pins is None:
+        pins = list(_open_pins.keys())
 
-    for p in pin:
-        state = GPIOPin.configured(p, assert_exists)
+    if type(pins) not in (list, tuple):
+        pins = [pins]
+
+    for pin in pins:
+        state = GPIOPin.configured(pin, assert_exists)
 
         if state is not None:
-            state.cleanup()
+            state.cleanup()  # GPIOPin will remove itself from _open_pins
 
 
-def setup(pin, mode, pullup=None, initial=LOW, active_low=None):
+def setup(pins, mode, pullup=None, initial=LOW, active_low=None):
     '''Setup pin with mode IN or OUT.
 
     Args:
@@ -191,29 +212,20 @@ def setup(pin, mode, pullup=None, initial=LOW, active_low=None):
         active_low (bool, optional): Set the pin to active low. Default
             is None which leaves things as configured in sysfs
     '''
-    if type(pin) in (list, tuple):
-        for p in pin:
-            setup(p, mode, pullup=pullup, initial=initial, active_low=active_low)
-        return
-
-    state = GPIOPin.configured(pin, False)
-
-    # Attempt to create the pin if not configured
-    if state is None:
-        state = GPIOPin(pin)  # GPIOPin will add itself to _open_pins
+    if type(pins) not in (list, tuple):
+        pins = [pins]
 
     if pullup is not None:
         raise ValueError("sysfs does not support pull up/down")
 
-    state.set_direction(mode)
+    for pin in pins:
+        state = GPIOPin.configured(pin, False)
 
-    if active_low is not None:
-        state.set_active_low(active_low)
+        # Attempt to create the pin if not configured
+        if state is None:
+            state = GPIOPin(pin)  # GPIOPin will add itself to _open_pins
 
-    # RPi.GPIO accepts an "initial" pin state value of HIGH or LOW
-    # and sets the pin to that value during setup()
-    if mode == OUT:
-        set(pin, initial)
+        state.setup(mode, initial, active_low)
 
 
 def mode(pin):
@@ -229,7 +241,7 @@ def read(pin):
     '''read the pin value
 
     Returns:
-        bool: LOW or HIGH
+        bool: either gpio.LOW or gpio.HIGH
     '''
     # These function calls lose us a little speed
     # but we're already > 2x faster so...
@@ -242,7 +254,7 @@ def write(pin, value):
 
     Args:
         pin (int): any configured pin
-        value (bool): LOW or HIGH
+        value (bool): use gpio.LOW or gpio.HIGH
     '''
     # These function calls lose us a little speed
     # but we're already > 2x faster so...
