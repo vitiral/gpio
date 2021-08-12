@@ -24,6 +24,19 @@ def test_setup_class(gpio, patch_open):
     patch_open().__enter__().write.assert_any_call(str(gpio.OUT))
 
 
+def test_setup_rpio_list(gpio, patch_open):
+    gpio.setup([9, 10, 11], gpio.OUT)
+
+
+def test_setup_rpio_tuple(gpio, patch_open):
+    gpio.setup((9, 10, 11), gpio.OUT)
+
+
+def test_setup_rpio_generator(gpio, patch_open):
+    pins = {9: 9, 10: 10, 11: 11}
+    gpio.setup(pins.keys(), gpio.OUT)
+
+
 def test_setup_with_pull(gpio, patch_open):
     with pytest.raises(ValueError):
         gpio.setup(10, gpio.OUT, pullup=1)
@@ -92,10 +105,10 @@ def test_cleanup_class_unexports_pin(gpio, patch_open):
 
 def test_setup_pin_is_not_int(gpio, patch_open):
     with pytest.raises(ValueError):
-        gpio.setup('', gpio.OUT)
+        gpio.setup(None, gpio.OUT)
 
     with pytest.raises(ValueError):
-        pin = gpio.GPIOPin('', gpio.OUT)
+        pin = gpio.GPIOPin(None, gpio.OUT)
 
 
 def test_cleanup_class_unregisters_self(gpio, patch_open):
@@ -132,7 +145,7 @@ def test_set_active_low(gpio, patch_open):
     ))
 
     with pytest.raises(ValueError):
-        pin.set_active_low('')
+        pin.set_active_low(None)
 
 
 def test_setup_active_low(gpio, patch_open):
@@ -174,7 +187,7 @@ def test_set_direction(gpio, patch_open):
         ))
 
     with pytest.raises(ValueError):
-        pin.set_direction('')
+        pin.set_direction(None)
 
 
 def test_unconfigured_runtimeerror(gpio, patch_open):

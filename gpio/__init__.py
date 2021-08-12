@@ -2,6 +2,10 @@
 __version__ = '1.0.0'
 
 from threading import Lock
+try:
+    from collections.abc import Iterable
+except ImportError:
+    from collections import Iterable
 import os
 
 
@@ -148,12 +152,8 @@ class GPIOPin(object):
         Args:
             value (bool): use either gpio.HIGH or gpio.LOW
         '''
-        # Convert any truthy value explicitly to HIGH and vice versa
-        # this is about 3x faster than int(bool(value))
-        value = HIGH if value else LOW
         # write as bytes, about 3x faster than string IO
         self.value.write(b'1' if value else b'0')
-        # state.value.write(str(value).encode())  # Slow alternate for Python 2
 
     def cleanup(self):
         '''Clean up pin
@@ -188,9 +188,10 @@ def cleanup(pin=None, assert_exists=False):
     pins = pin
 
     if pins is None:
+        # Must be converted to a list since _open_pins is potentially modified below
         pins = list(_open_pins.keys())
 
-    if type(pins) not in (list, tuple):
+    if not isinstance(pins, Iterable):
         pins = [pins]
 
     for pin in pins:
@@ -213,7 +214,7 @@ def setup(pins, mode, pullup=None, initial=LOW, active_low=None):
         active_low (bool, optional): Set the pin to active low. Default
             is None which leaves things as configured in sysfs
     '''
-    if type(pins) not in (list, tuple):
+    if not isinstance(pins, Iterable):
         pins = [pins]
 
     if pullup is not None:
