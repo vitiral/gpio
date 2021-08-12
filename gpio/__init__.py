@@ -26,23 +26,18 @@ class GPIOPin(object):
         pin (int): the GPIO pin to configure
     """
     def __init__(self, pin, mode=None, initial=LOW, active_low=None):
-        try:
-            # Implicitly convert str to int, ie: "1" -> 1
-            pin = int(pin)
-        except TypeError:
-            raise TypeError("pin must be an int")
-
-        if _open_pins.get(pin):
-            raise RuntimeError("pin {} already configured".format(pin))
+        #  .configured() will raise a TypeError if "pin" is not convertable to int
+        if GPIOPin.configured(pin, False) is not None:
+            raise RuntimeError("pin {} is already configured".format(pin))
 
         self.value = None
-        self.pin = str(pin)
+        self.pin = int(pin)
         self.root = os.path.join(GPIO_ROOT, 'gpio{0}'.format(self.pin))
 
         if not os.path.exists(self.root):
             with _export_lock:
                 with open(GPIO_EXPORT, FMODE) as f:
-                    f.write(self.pin)
+                    f.write(str(self.pin))
                     f.flush()
 
         # Using unbuffered binary IO is ~ 3x faster than text
@@ -58,23 +53,30 @@ class GPIOPin(object):
             self.write(initial)
 
         # Add class to open pins
-        _open_pins[pin] = self
+        _open_pins[self.pin] = self
 
     @staticmethod
-    def configured(pin):
+    def configured(pin, assert_configured=True):
         """Get a configured GPIOPin instance where available.
 
         Args:
             pin (int): the GPIO pin to configured
+            assert_configured (bool): True to raise exception if pin unconfigured
 
         Returns:
-            object: GPIOPin is configured, otherwise None
+            object: GPIOPin if configured, otherwise None
+
+        Raises:
+            RuntimeError: if pin is not configured
         """
         try:
             # Implicitly convert str to int, ie: "1" -> 1
             pin = int(pin)
         except TypeError:
             raise TypeError("pin must be an int")
+
+        if pin not in _open_pins and assert_configured:
+            raise RuntimeError("pin {} is not configured".format(pin))
 
         return _open_pins.get(pin)
 
@@ -117,12 +119,12 @@ class GPIOPin(object):
         '''Read pin value'''
         self.value.seek(0)
         value = self.value.read()
-        try: 
+        try:
             # Python > 3 - bytes
             # Subtracting 48 converts an ASCII "0" or "1" to an int
             # ord("0") == 48
             return value[0] - 48
-        except TypeError: 
+        except TypeError:
             # Python 2.x - str
             return int(value)
 
@@ -149,10 +151,10 @@ class GPIOPin(object):
         if os.path.exists(self.root):
             with _export_lock:
                 with open(GPIO_UNEXPORT, FMODE) as f:
-                    f.write(self.pin)
+                    f.write(str(self.pin))
                     f.flush()
 
-        del _open_pins[int(self.pin)]
+        del _open_pins[self.pin]
 
 
 def cleanup(pin=None, assert_exists=False):
@@ -164,30 +166,17 @@ def cleanup(pin=None, assert_exists=False):
         assert_exists: if True, raise a ValueError if the pin was not
             setup. Otherwise, this function is a NOOP.
     """
-    if type(pin) in (list, tuple):
-        for p in pin:
-            cleanup(p, assert_exists=assert_exists)
-        return
-
     if pin is None:
-        # Iterate through the open pins, "cleanup" and "del" them.
-        for pin in list(_open_pins.keys()):
-            _open_pins[pin].cleanup()
-        return
+        pin = list(_open_pins.keys())
 
-    try:
-        pin = int(pin)
-    except TypeError:
-        # This is a white lie, supporting "1" etc is a silent back-compat fix
-        raise TypeError("pin must be an int")
+    if type(pin) not in (list, tuple):
+        pin = [pin]
 
-    if pin not in _open_pins:
-        if assert_exists:
-            raise ValueError("pin {} was not configured".format(pin))
-        return
+    for p in pin:
+        state = GPIOPin.configured(p, assert_exists)
 
-    _open_pins[pin].cleanup()
-    del _open_pins[pin]
+        if state is not None:
+            state.cleanup()
 
 
 def setup(pin, mode, pullup=None, initial=LOW, active_low=None):
@@ -207,18 +196,11 @@ def setup(pin, mode, pullup=None, initial=LOW, active_low=None):
             setup(p, mode, pullup=pullup, initial=initial, active_low=active_low)
         return
 
-    try:
-        pin = int(pin)
-    except TypeError:
-        # This is a white lie, supporting "1" etc is a silent back-compat fix
-        raise TypeError("pin must be an int")
-
-    state = _open_pins.get(pin)
+    state = GPIOPin.configured(pin, False)
 
     # Attempt to create the pin if not configured
     if state is None:
-        # GPIOPin will add itself to _open_pins
-        state = GPIOPin(pin)
+        state = GPIOPin(pin)  # GPIOPin will add itself to _open_pins
 
     if pullup is not None:
         raise ValueError("sysfs does not support pull up/down")
@@ -240,18 +222,7 @@ def mode(pin):
     Returns:
         str: "in" or "out"
     '''
-
-    try:
-        pin = int(pin)
-    except TypeError:
-        # This is a white lie, supporting "1" etc is a silent back-compat fix
-        raise TypeError("pin must be an int")
-
-    state = _open_pins.get(pin)
-    if not state:
-        raise ValueError("pin {} is not configured".format(pin))
-
-    return state.get_direction()
+    return GPIOPin.configured(pin).get_direction()
 
 
 def read(pin):
@@ -260,23 +231,10 @@ def read(pin):
     Returns:
         bool: LOW or HIGH
     '''
-
-    # This costs us some read speed performance.
-    # If you want things to be faster use a GPIOPin instance directly.
-    try:
-        pin = int(pin)
-    except TypeError:
-        # This is a white lie, supporting "1" etc is a silent back-compat fix
-        raise TypeError("pin must be an int")
-
-    state = _open_pins.get(pin)
-    if not state:
-        raise ValueError("pin {} is not configured".format(pin))
-
     # These function calls lose us a little speed
     # but we're already > 2x faster so...
     # If you want things to be faster use a GPIOPin instance directly.
-    return state.read()
+    return GPIOPin.configured(pin).read()
 
 
 def write(pin, value):
@@ -286,23 +244,10 @@ def write(pin, value):
         pin (int): any configured pin
         value (bool): LOW or HIGH
     '''
-
-    # This costs us about 30KHz but preserves API support for str GPIO numbers
-    # If you want things to be faster use a GPIOPin instance directly.
-    try:
-        pin = int(pin)
-    except TypeError:
-        # This is a white lie, supporting "1" etc is a silent back-compat fix
-        raise TypeError("pin must be an int")
-
-    state = _open_pins.get(pin)
-    if not state:
-        raise ValueError("pin {} is not configured".format(pin))
-
     # These function calls lose us a little speed
     # but we're already > 2x faster so...
     # If you want things to be faster use a GPIOPin instance directly.
-    state.write(value)
+    GPIOPin.configured(pin).write(value)
 
 
 input = read
