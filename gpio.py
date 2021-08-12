@@ -1,11 +1,25 @@
 # -*- coding: utf-8 -*-
-__version__ = '0.3.0'
+__version__ = '0.2.1'
 
 import threading
 import os
+import sys
+import traceback
+import pdb
 
 import logging
 log = logging.getLogger(__name__)
+# Log errors only:
+log.debug = lambda *x: None
+logging.basicConfig(level=logging.ERROR)
+# Log errors and debug messages:
+# logging.basicConfig(level=logging.DEBUG)
+
+
+def except_hook(exctype, value, tb):
+    traceback.print_tb(tb)
+    print(repr(value))
+    pdb.post_mortem(tb)
 
 
 class PinState(object):
@@ -16,12 +30,12 @@ class PinState(object):
     Args:
         value: the file pointer to set/read value of pin.
         direction: the file pointer to set/read direction of the pin.
-        active_now: the file pointer to set/read if the pin is active_low.
     """
-    def __init__(self, value, direction, active_low):
+    def __init__(self, value, direction):
         self.value = value
         self.direction = direction
-        self.active_low = active_low
+
+sys.excepthook = except_hook
 
 path = os.path
 pjoin = os.path.join
@@ -36,46 +50,19 @@ _open = dict()
 FMODE = 'w+'
 
 IN, OUT = 'in', 'out'
-LOW, HIGH = 'low', 'high'
+LOW, HIGH = 0, 1
 
 
 def _write(f, v):
-    log.debug("writing: {0}: {1}".format(f, v))
-    f.write(str(v))
+    log.debug("writing: %s: %s", f, v)
+    f.write(v)
     f.flush()
 
 
 def _read(f):
-    log.debug("Reading: {0}".format(f))
+    log.debug("Reading: %s", f)
     f.seek(0)
     return f.read().strip()
-
-
-def _verify(function):
-    """decorator to ensure pin is properly set up"""
-    # @functools.wraps
-    def wrapped(pin, *args, **kwargs):
-        pin = int(pin)
-        if pin not in _open:
-            ppath = gpiopath(pin)
-            if not os.path.exists(ppath):
-                log.debug("Creating Pin {0}".format(pin))
-                with _export_lock:
-                    with open(pjoin(gpio_root, 'export'), 'w') as f:
-                        _write(f, pin)
-            value, direction, active_low = None, None, None
-            try:
-                value = open(pjoin(ppath, 'value'), FMODE)
-                direction = open(pjoin(ppath, 'direction'), FMODE)
-                active_low = open(pjoin(ppath, 'active_low'), FMODE)
-            except Exception as e:
-                if value: value.close()
-                if direction: direction.close()
-                if active_low: active_low.close()
-                raise e
-            _open[pin] = PinState(value=value, direction=direction, active_low=active_low)
-        return function(pin, *args, **kwargs)
-    return wrapped
 
 
 def cleanup(pin=None, assert_exists=False):
@@ -93,62 +80,63 @@ def cleanup(pin=None, assert_exists=False):
             cleanup(pin)
         return
     if not isinstance(pin, int):
-        raise TypeError("pin must be an int, got: {}".format(pin))
+        raise TypeError("pin must be an int, got: %s", pin)
 
     state = _open.get(pin)
     if state is None:
         if assert_exists:
-            raise ValueError("pin {} was not setup".format(pin))
+            raise ValueError("pin %d was not setup", pin)
         return
     state.value.close()
     state.direction.close()
-    state.active_low.close()
     if os.path.exists(gpiopath(pin)):
-        log.debug("Unexporting pin {0}".format(pin))
+        log.debug("Unexporting pin %d", pin)
         with _export_lock:
             with open(pjoin(gpio_root, 'unexport'), 'w') as f:
-                _write(f, pin)
+                _write(f, str(pin))
 
     del _open[pin]
 
 
-@_verify
-def setup(pin, mode, pullup=None, initial=False, active_low=None):
+def setup(pin, mode, pullup=None, initial=False):
     '''Setup pin with mode IN or OUT.
 
     Args:
         pin (int):
         mode (str): use either gpio.OUT or gpio.IN
-        pullup (None): rpio compatibility. If anything but None, raises
+        pullup (optional): rpio compatibility. If anything but None, raises
             value Error
         initial (bool, optional): Initial pin value. Default is False
-        active_low (bool, optional): Set the pin to active low. Default
-            is None which leaves things as configured in sysfs
     '''
+    if not isinstance(pin, int):
+        raise TypeError("pin must be an int, got: %s", pin)
+    if pin not in _open:
+        ppath = gpiopath(pin)
+        if not os.path.exists(ppath):
+            log.debug("Creating Pin %d", pin)
+            with _export_lock:
+                with open(pjoin(gpio_root, 'export'), 'w') as f:
+                    _write(f, str(pin))
+        value = open(pjoin(ppath, 'value'), FMODE)
+        direction = open(pjoin(ppath, 'direction'), FMODE)
+        _open[pin] = PinState(value=value, direction=direction)
+
     if pullup is not None:
         raise ValueError("sysfs does not support pullups")
 
-    if mode not in (IN, OUT, LOW, HIGH):
+    if mode not in (IN, OUT):
         raise ValueError(mode)
 
-    if active_low is not None:
-        if not isinstance(active_low, bool):
-            raise ValueError("active_low argument must be True or False")
-        log.debug("Set active_low {0}: {1}".format(pin, active_low))
-        f_active_low = _open[pin].active_low
-        _write(f_active_low, int(active_low))
-
-    log.debug("Setup {0}: {1}".format(pin, mode))
-    f_direction = _open[pin].direction
-    _write(f_direction, mode)
+    log.debug("Setup %d: %s", pin, mode)
+    f = _open[pin].direction
+    _write(f, mode)
     if mode == OUT:
         if initial:
-            set(pin, 1)
+            set(pin, HIGH)
         else:
-            set(pin, 0)
+            set(pin, LOW)
 
 
-@_verify
 def mode(pin):
     '''get the pin mode
 
@@ -159,40 +147,31 @@ def mode(pin):
     return _read(f)
 
 
-@_verify
-def read(pin):
+def input(pin):
     '''read the pin value
 
     Returns:
         bool: 0 or 1
     '''
     f = _open[pin].value
-    out = int(_read(f))
-    log.debug("Read {0}: {1}".format(pin, out))
+    f.seek(0)
+    out = (HIGH if f.read() == '1' else LOW)
+    log.debug("Read %d: %d", pin, out)
     return out
 
 
-@_verify
-def set(pin, value):
-    '''set the pin value to 0 or 1'''
-    if value is LOW:
-        value = 0
-    value = int(bool(value))
-    log.debug("Write {0}: {1}".format(pin, value))
-    f = _open[pin].value
-    _write(f, value)
-
-
-@_verify
-def input(pin):
-    '''read the pin. Same as read'''
-    return read(pin)
-
-
-@_verify
 def output(pin, value):
-    '''set the pin. Same as set'''
-    return set(pin, value)
+    '''set the pin value to 0 or 1'''
+    log.debug("Write %d: %s", pin, value)
+    f = _open[pin].value
+    f.write('1' if value else '0')
+    f.flush()
+
+
+read = input
+
+
+set = output
 
 
 def setwarnings(value):
