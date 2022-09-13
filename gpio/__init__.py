@@ -2,7 +2,7 @@
 __version__ = '1.0.0'
 
 from threading import Lock
-from time import sleep
+from time import sleep, time
 try:
     from collections.abc import Iterable
 except ImportError:
@@ -52,8 +52,12 @@ class GPIOPin(object):
                 with open(GPIO_EXPORT, FMODE_SYS_WO) as f:
                     f.write(str(self.pin))
                     f.flush()
-            # give the kernel a moment to build out the requested sysfs tree
-            sleep(.1)
+            gpio_gid = os.stat(GPIO_ROOT).st_gid
+            value_path = os.path.join(self.root, 'value')
+            start = time()
+            # give udev a moment to update the group of newly created files
+            while os.stat(value_path).st_gid != gpio_gid and time() - start < .5:
+                sleep(.01)
 
         # Using unbuffered binary IO is ~ 3x faster than text
         self.value = open(os.path.join(self.root, 'value'), FMODE_BIN_RW, buffering=0)
