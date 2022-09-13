@@ -2,6 +2,7 @@
 __version__ = '1.0.0'
 
 from threading import Lock
+from time import sleep
 try:
     from collections.abc import Iterable
 except ImportError:
@@ -51,6 +52,8 @@ class GPIOPin(object):
                 with open(GPIO_EXPORT, FMODE_SYS_WO) as f:
                     f.write(str(self.pin))
                     f.flush()
+            # give the kernel a moment to build out the requested sysfs tree
+            sleep(.1)
 
         # Using unbuffered binary IO is ~ 3x faster than text
         self.value = open(os.path.join(self.root, 'value'), FMODE_BIN_RW, buffering=0)
