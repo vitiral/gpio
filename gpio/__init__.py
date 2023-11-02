@@ -1,23 +1,26 @@
 # -*- coding: utf-8 -*-
-__version__ = '1.0.0'
+__version__ = "2.0.0"
 
 from threading import Lock
+
 try:
     from collections.abc import Iterable
 except ImportError:
     from collections import Iterable
-import os
 
+import os
 
 _export_lock = Lock()
 _open_pins = {}
 
 
-GPIO_ROOT = '/sys/class/gpio'
-GPIO_EXPORT = os.path.join(GPIO_ROOT, 'export')
-GPIO_UNEXPORT = os.path.join(GPIO_ROOT, 'unexport')
-FMODE = 'w+'  # w+ overwrites and truncates existing files
-IN, OUT = 'in', 'out'
+GPIO_ROOT = "/sys/class/gpio"
+GPIO_EXPORT = os.path.join(GPIO_ROOT, "export")
+GPIO_UNEXPORT = os.path.join(GPIO_ROOT, "unexport")
+FMODE_SYS_WO = "w"    # /sys/class/gpio/export is not readable, even by root
+FMODE_SYS_RW = "w+"   # w+ overwrites and truncates existing files
+FMODE_BIN_RW = "wb+"  # Using unbuffered binary IO is ~ 3x faster than text
+IN, OUT = "in", "out"
 LOW, HIGH = 0, 1
 
 
@@ -35,23 +38,24 @@ class GPIOPin(object):
     Raises:
         RuntimeError: if pin is already configured
     """
+
     def __init__(self, pin, direction=None, initial=LOW, active_low=None):
-        #  .configured() will raise a TypeError if "pin" is not convertable to int
+        #  .configured() will raise a TypeError if "pin" is not convertible to int
         if GPIOPin.configured(pin, False) is not None:
             raise RuntimeError("pin {} is already configured".format(pin))
 
         self.value = None
         self.pin = int(pin)
-        self.root = os.path.join(GPIO_ROOT, 'gpio{0}'.format(self.pin))
+        self.root = os.path.join(GPIO_ROOT, "gpio{0}".format(self.pin))
 
         if not os.path.exists(self.root):
             with _export_lock:
-                with open(GPIO_EXPORT, FMODE) as f:
+                with open(GPIO_EXPORT, FMODE_SYS_WO) as f:
                     f.write(str(self.pin))
                     f.flush()
 
         # Using unbuffered binary IO is ~ 3x faster than text
-        self.value = open(os.path.join(self.root, 'value'), 'wb+', buffering=0)
+        self.value = open(os.path.join(self.root, "value"), FMODE_BIN_RW, buffering=0)
 
         # I hate manually calling .setup()!
         self.setup(direction, initial, active_low)
@@ -95,46 +99,46 @@ class GPIOPin(object):
         return _open_pins.get(pin)
 
     def get_direction(self):
-        '''Get the direction of pin
+        """Get the direction of pin
 
         Returns:
             str: "in" or "out"
-        '''
-        with open(os.path.join(self.root, 'direction'), FMODE) as f:
+        """
+        with open(os.path.join(self.root, "direction"), FMODE_SYS_RW) as f:
             return f.read().strip()
 
     def set_direction(self, mode):
-        '''Set the direction of pin
+        """Set the direction of pin
 
         Args:
             mode (str): use either gpio.OUT or gpio.IN
-        '''
+        """
         if mode not in (IN, OUT, LOW, HIGH):
             raise ValueError("Unsupported pin mode {}".format(mode))
 
-        with open(os.path.join(self.root, 'direction'), FMODE) as f:
+        with open(os.path.join(self.root, "direction"), FMODE_SYS_RW) as f:
             f.write(str(mode))
             f.flush()
 
     def set_active_low(self, active_low):
-        '''Set the polarity of pin
+        """Set the polarity of pin
 
         Args:
             mode (bool): True = active low / False = active high
-        '''
+        """
         if not isinstance(active_low, bool):
             raise ValueError("active_low must be True or False")
 
-        with open(os.path.join(self.root, 'active_low'), FMODE) as f:
-            f.write('1' if active_low else '0')
+        with open(os.path.join(self.root, "active_low"), FMODE_SYS_RW) as f:
+            f.write("1" if active_low else "0")
             f.flush()
 
     def read(self):
-        '''Read pin value
+        """Read pin value
 
         Returns:
             int: gpio.HIGH or gpio.LOW
-        '''
+        """
         self.value.seek(0)
         value = self.value.read()
         try:
@@ -147,28 +151,28 @@ class GPIOPin(object):
             return int(value)
 
     def write(self, value):
-        '''Write pin value
+        """Write pin value
 
         Args:
             value (bool): use either gpio.HIGH or gpio.LOW
-        '''
+        """
         # write as bytes, about 3x faster than string IO
-        self.value.write(b'1' if value else b'0')
+        self.value.write(b"1" if value else b"0")
 
     def cleanup(self):
-        '''Clean up pin
+        """Clean up pin
 
         Unexports the pin and deletes it from the open list.
 
-        '''
+        """
         # Note: I have not put "cleanup" into the __del__ method since it's not
-        # always desireable to unexport pins at program exit.
+        # always desirable to unexport pins at program exit.
         # Additionally "open" can be deleted *before* the GPIOPin instance.
         self.value.close()
 
         if os.path.exists(self.root):
             with _export_lock:
-                with open(GPIO_UNEXPORT, FMODE) as f:
+                with open(GPIO_UNEXPORT, FMODE_SYS_WO) as f:
                     f.write(str(self.pin))
                     f.flush()
 
@@ -203,7 +207,7 @@ def cleanup(pin=None, assert_exists=False):
 
 # TODO RPi.GPIO uses "pull_up_down", does rpio differ?
 def setup(pins, mode, pullup=None, initial=LOW, active_low=None):
-    '''Setup pin with mode IN or OUT.
+    """Setup pin with mode IN or OUT.
 
     Args:
         pin (int):
@@ -213,7 +217,7 @@ def setup(pins, mode, pullup=None, initial=LOW, active_low=None):
         initial (bool, optional): Initial pin value. Default is LOW
         active_low (bool, optional): Set the pin to active low. Default
             is None which leaves things as configured in sysfs
-    '''
+    """
     if not isinstance(pins, Iterable):
         pins = [pins]
 
@@ -231,20 +235,20 @@ def setup(pins, mode, pullup=None, initial=LOW, active_low=None):
 
 
 def mode(pin):
-    '''get the pin mode
+    """get the pin mode
 
     Returns:
         str: "in" or "out"
-    '''
+    """
     return GPIOPin.configured(pin).get_direction()
 
 
 def read(pin):
-    '''read the pin value
+    """read the pin value
 
     Returns:
         bool: either gpio.LOW or gpio.HIGH
-    '''
+    """
     # These function calls lose us a little speed
     # but we're already > 2x faster so...
     # If you want things to be faster use a GPIOPin instance directly.
@@ -252,12 +256,12 @@ def read(pin):
 
 
 def write(pin, value):
-    '''set the pin value to LOW or HIGH
+    """set the pin value to LOW or HIGH
 
     Args:
         pin (int): any configured pin
         value (bool): use gpio.LOW or gpio.HIGH
-    '''
+    """
     # These function calls lose us a little speed
     # but we're already > 2x faster so...
     # If you want things to be faster use a GPIOPin instance directly.
