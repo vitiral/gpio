@@ -7,7 +7,7 @@ name = "gpio"
 dynamic = ["version", "readme"]
 description = "gpio access via the standard linux sysfs interface"
 license = {file = "LICENSE"}
-requires-python = ">= 2.7"
+requires-python = ">= 3.7"
 authors = [
     { name = "Philip Howard", email = "phil@pimoroni.com" },
     { name = "Garrett Berg" },
