@@ -80,6 +80,9 @@ exclude = [
 ]
 line-length = 200
 
+[tool.black]
+line-length = 200
+
 [tool.codespell]
 skip = """
 ./.tox,\
