@@ -36,7 +36,7 @@ class GPIOPin(object):
         RuntimeError: if pin is already configured
     """
     def __init__(self, pin, direction=None, initial=LOW, active_low=None):
-        #  .configured() will raise a TypeError if "pin" is not convertable to int
+        #  .configured() will raise a TypeError if "pin" is not convertible to int
         if GPIOPin.configured(pin, False) is not None:
             raise RuntimeError("pin {} is already configured".format(pin))
 
@@ -162,7 +162,7 @@ class GPIOPin(object):
 
         '''
         # Note: I have not put "cleanup" into the __del__ method since it's not
-        # always desireable to unexport pins at program exit.
+        # always desirable to unexport pins at program exit.
         # Additionally "open" can be deleted *before* the GPIOPin instance.
         self.value.close()
 

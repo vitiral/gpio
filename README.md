@@ -2,7 +2,7 @@
 
 This library provides gpio access via the standard linux [sysfs interface](https://www.kernel.org/doc/Documentation/gpio/sysfs.txt)
 
-It is intended to mimick [RPIO](http://pythonhosted.org/RPIO/) as much as possible 
+It is intended to mimic [RPIO](http://pythonhosted.org/RPIO/) as much as possible 
 for all features, while also supporting additional (and better named) functionality 
 to the same methods.
 
