@@ -2,12 +2,13 @@
 __version__ = '2.0.0'
 
 from threading import Lock
+
 try:
     from collections.abc import Iterable
 except ImportError:
     from collections import Iterable
-import os
 
+import os
 
 _export_lock = Lock()
 _open_pins = {}
