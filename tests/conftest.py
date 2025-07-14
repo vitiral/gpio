@@ -15,5 +15,6 @@ def patch_open():
 @pytest.fixture
 def gpio():
     import gpio
+
     yield gpio
-    del sys.modules['gpio']
+    del sys.modules["gpio"]

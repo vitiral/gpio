@@ -1,4 +1,0 @@
-include README.md
-include LICENSE.txt
-include setup.py
-recursive-include gpio *.py
