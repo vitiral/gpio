@@ -5,22 +5,22 @@ import pytest
 def test_setup_rpio(gpio, patch_open):
     gpio.setup(10, gpio.OUT)
 
-    patch_open.assert_any_call("/sys/class/gpio/export", "w+")
+    patch_open.assert_any_call("/sys/class/gpio/export", gpio.FMODE_SYS_WO)
     patch_open().__enter__().write.assert_any_call("10")
 
-    patch_open.assert_any_call("/sys/class/gpio/gpio10/value", "wb+", buffering=0)
-    patch_open.assert_any_call("/sys/class/gpio/gpio10/direction", "w+")
+    patch_open.assert_any_call("/sys/class/gpio/gpio10/value", gpio.FMODE_BIN_RW, buffering=0)
+    patch_open.assert_any_call("/sys/class/gpio/gpio10/direction", gpio.FMODE_SYS_RW)
     patch_open().__enter__().write.assert_any_call(str(gpio.OUT))
 
 
 def test_setup_class(gpio, patch_open):
     _ = gpio.GPIOPin(10, gpio.OUT)
 
-    patch_open.assert_any_call("/sys/class/gpio/export", "w+")
+    patch_open.assert_any_call("/sys/class/gpio/export", gpio.FMODE_SYS_WO)
     patch_open().__enter__().write.assert_any_call("10")
 
-    patch_open.assert_any_call("/sys/class/gpio/gpio10/value", "wb+", buffering=0)
-    patch_open.assert_any_call("/sys/class/gpio/gpio10/direction", "w+")
+    patch_open.assert_any_call("/sys/class/gpio/gpio10/value", gpio.FMODE_BIN_RW, buffering=0)
+    patch_open.assert_any_call("/sys/class/gpio/gpio10/direction", gpio.FMODE_SYS_RW)
     patch_open().__enter__().write.assert_any_call(str(gpio.OUT))
 
 
@@ -99,7 +99,7 @@ def test_cleanup_class_unexports_pin(gpio, patch_open):
     pin.root = "/dev/null"  # Pass os.path.exists check
     pin.cleanup()
 
-    patch_open.assert_any_call("/sys/class/gpio/unexport", "w+")
+    patch_open.assert_any_call("/sys/class/gpio/unexport", gpio.FMODE_SYS_WO)
     patch_open().__enter__().write.assert_any_call("10")
 
 
